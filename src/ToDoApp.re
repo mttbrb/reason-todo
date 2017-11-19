@@ -1,5 +1,5 @@
 type action = 
-  | AddItem
+  | AddItem(string)
   | ToggleItem(int);
 
 type item = {
@@ -19,10 +19,38 @@ module TodoItem = {
         <input 
           _type="checkbox" 
           checked=(Js.Boolean.to_js_boolean(item.completed))
-          /*TODO make interactive*/
         />
         (str(item.title))
       </div>
+  };
+};
+
+let valueFromEvent = (evt) : string => (
+  evt
+  |> ReactEventRe.Form.target
+  |> ReactDOMRe.domElementToObj
+)##value;
+
+
+module Input = {
+  type state = string;
+  let component = ReasonReact.reducerComponent("input");
+  let make = (~onSubmit, _) => {
+    ...component,
+    initialState: () => "",
+    reducer: (newText, _text) => ReasonReact.Update(newText),
+    render: ({state: text, reduce}) => 
+      <input
+        value=text
+        _type="text"
+        placeholder="Write something to do"
+        onChange=(reduce((evt) => valueFromEvent(evt)))
+        onKeyDown=((evt) =>
+          if (ReactEventRe.Keyboard.key(evt) == "Enter") {
+            onSubmit(text);
+            (reduce(() => ""))()
+          })
+        />
   };
 };
 
@@ -34,10 +62,10 @@ let component = ReasonReact.reducerComponent("ToDoApp");
 
 let lastId = ref(0);
 
-let newItem = () => {
+let newItem = (text) => {
   lastId := lastId^ + 1;
 
-  {id: lastId^, title: "Click a Button", completed: true};
+  {id: lastId^, title: text, completed: false};
 };
 
 let make = (_children) => {
@@ -51,7 +79,7 @@ let make = (_children) => {
 
     reducer: (action, {items}) => 
       switch action {
-      | AddItem => ReasonReact.Update({items: [newItem(), ...items]})
+      | AddItem(text) => ReasonReact.Update({items: [newItem(text), ...items]})
       | ToggleItem(id) =>
           let items = List.map(
             (item) =>
@@ -67,9 +95,7 @@ let make = (_children) => {
 
       <div className="app">
         <div className="title"> (str("What to do")) </div>
-        <button onClick=(reduce((_evt) => AddItem))>
-          (str("Add Something"))
-        </button>
+        <Input onSubmit=(reduce((text) => AddItem(text))) />
         <div className="items"> (
           ReasonReact.arrayToElement(Array.of_list(
             List.map(
